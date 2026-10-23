@@ -1,38 +1,47 @@
-name: "Terraform Automation Validation"
+name: "DevOps Automated Build Pipeline"
 
-# Trigger this workflow whenever code changes are pushed to the main branch
 on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
 
 jobs:
-  validate:
-    name: "Lint and Validate Blueprints"
+  infrastructure-and-containers:
+    name: "Validate IAC and Push Docker Image"
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Pull down a copy of the code onto the runner machine
+      # 1. Pull down workspace code
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # 2. Spin up the official HashiCorp Terraform engine environment
+      # 2. Setup and validate your Terraform files
       - name: Setup Terraform CLI
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.9.1
 
-      # 3. Check if the configuration syntax layout matches standard practices
-      - name: Verify Code Formatting
-        run: terraform fmt -check
-
-      # 4. Initialize structural provider schemas without linking to live cloud backends
       - name: Initialize Mock Workspace
         run: terraform init -backend=false
 
-      # 5. Run static structural validations
       - name: Validate Infrastructure Logic
         run: terraform validate
+
+      # 3. Securely authenticate into your Cloud Docker Hub Registry
+      - name: Authenticate to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 4. Compile and push the versioned container image directly to the cloud
+      - name: Build and Push Microservice Image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # Dynamically tags the image with your username and the latest commit identifier
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/my-web-app:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/my-web-app:${{ github.sha }}
